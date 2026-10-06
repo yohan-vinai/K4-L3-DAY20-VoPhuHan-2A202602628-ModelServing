@@ -21,24 +21,24 @@ Setup ran on the M1. I chose the smaller model to reduce download and run time. 
 
 | Quantization | Size (GB) | Load (ms) | TTFT P50/P95 (ms) | TPOT P50/P95 (ms) | E2E P50/P95/P99 (ms) | Decode (tok/s) |
 |---|--:|--:|--:|--:|--:|--:|
-| Q4_K_M | 0.50 | 2094 | 122 / 321 | 24.0 / 30.1 | 1558 / 2044 / 2044 | 41.6 |
-| UD-Q2_K_XL | 0.39 | 3117 | 123 / 150 | 20.6 / 23.5 | 1444 / 1593 / 1593 | 48.7 |
+| Q4_K_M | 0.50 | 2118 | 96 / 268 | 16.9 / 22.2 | 1123 / 1521 / 1521 | 59.2 |
+| UD-Q2_K_XL | 0.39 | 2090 | 98 / 141 | 17.7 / 22.3 | 1204 / 1545 / 1545 | 56.6 |
 
-Q2 used 0.11 GB less and decoded 1.17× faster; TTFT P50 was almost unchanged. On the same prefill/decode question, Q4 gave a partly relevant but incorrect explanation, while Q2 went off-topic and invented a training/accuracy trade-off. For this factual prompt, the speed/size gain did not justify the quality loss; neither answer was reliable without checking the source.
+Q2 used 0.11 GB less but decoded at 56.6 tok/s versus 59.2 tok/s for Q4 (about 4.4% slower); TTFT P50 was nearly unchanged. On the same prefill/decode question, Q4 gave a partly relevant but incorrect explanation, while Q2 went off-topic and invented a training/accuracy trade-off. Neither answer was reliable without checking the source, so the smaller file did not justify choosing Q2 for this use. Metal offload was active; these timings do not identify the cause of Q2's slower decode.
 
 ## 3. Serving under load
 
 | Users | RPS | P50 (ms) | P95 (ms) | P99 (ms) | Effective concurrency | Failures |
 |--:|--:|--:|--:|--:|--:|--:|
-| 10 | 0.83 | 11000 | 16000 | 17000 | 8.6 | 0.0% |
-| 50 | 0.64 | 27000 | 57000 | 57000 | 18.3 | 0.0% |
+| 10 | 1.27 | 6400 | 9200 | 11000 | 8.4 | 0.0% |
+| 50 | 1.18 | 25000 | 29000 | 31000 | 24.9 | 0.0% |
 
-- Offered users increased 5×; delivered throughput was **0.78×** (a 22% decrease).
-- P95 latency increased **3.56×**.
-- Effective concurrency at 50 users: **18.3** versus `--parallel=4` slots.
+- Offered users increased 5×; delivered throughput was **0.93×** (about a 7% decrease).
+- P95 latency increased **3.15×**.
+- Effective concurrency: **8.4** at 10 users and **24.9** at 50 users, versus `--parallel=4` slots.
 - Peak `n_busy_slots_per_decode`: **3.87/4** slots; **46** requests were deferred.
 
-Using a 20-second P95 target for this reading, the 10-user run met it (16 s), while the 50-user run did not (57 s). The high-load run shows a growing queue: Little's Law effective concurrency includes queued requests, while the 3.87 busy-slot gauge measures decode-slot occupancy. I would first cap long prompts/outputs or admission rate to reduce slot holding time; adding slots alone does not add M1 memory bandwidth.
+Using a 20-second P95 target, the 10-user run met it (P95 9.2 s; all 75 responses were below 20 s), while the 50-user run did not (P50 was 25 s, so fewer than half of 69 responses met the target). The aggregate CSV does not expose an exact SLO-passing request count. The batching capture separately recorded a peak average of 3.87/4 busy slots and 46 deferred requests while a 50-user load was active. Little's Law effective concurrency includes queued requests; the busy-slot gauge measures decode-slot occupancy. I would first cap long prompts/outputs or admission rate to reduce slot holding time; adding slots alone does not add M1 memory bandwidth.
 
 ## 4. Integration
 
@@ -77,11 +77,11 @@ Reducing threads from eight to one improved measured decode throughput by 17%. Q
 - [x] `hardware.json` committed
 - [x] `models/active.json` committed
 - [x] Benchmark reports generated and observations filled
-- [ ] Five screenshots in `submission/screenshots/`
-- [ ] `make verify` → exit 0
+- [x] Five screenshots in `submission/screenshots/`
+- [x] `make verify` → exit 0
 - [x] Repository has the required name: `K4-L3-DAY20-VoPhuHan-2A202602628-ModelServing`
 - [x] GitHub repository is public
-- [ ] Final commit pushed
+- [x] Final commit pushed
 - [ ] URL pasted into VinUni LMS before the deadline
 - [x] Model weights, runtime, and `.env` are not included
 

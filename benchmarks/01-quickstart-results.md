@@ -7,13 +7,13 @@ Completed requests: `Q4_K_M` 10/10 · `UD-Q2_K_XL` 10/10
 
 | Quantization | Size (GB) | Load (ms) | TTFT P50/P95 (ms) | TPOT P50/P95 (ms) | E2E P50/P95/P99 (ms) | Decode (tok/s) |
 |:--|--:|--:|--:|--:|--:|--:|
-| Q4_K_M | 0.50 | 2094 | 122 / 321 | 24.0 / 30.1 | 1558 / 2044 / 2044 | 41.6 |
-| UD-Q2_K_XL | 0.39 | 3117 | 123 / 150 | 20.6 / 23.5 | 1444 / 1593 / 1593 | 48.7 |
+| Q4_K_M | 0.50 | 2118 | 96 / 268 | 16.9 / 22.2 | 1123 / 1521 / 1521 | 59.2 |
+| UD-Q2_K_XL | 0.39 | 2090 | 98 / 141 | 17.7 / 22.3 | 1204 / 1545 / 1545 | 56.6 |
 
 - **TTFT** = prefill. Short prompts keep it small; long-context RAG is where it explodes.
 - **TPOT** = per-output-token decode cost, bounded by memory bandwidth. `decode tok/s = 1000 / TPOT_p50`.
-- `UD-Q2_K_XL` decodes **1.17x faster** than `Q4_K_M` here, for 0.11 GB less on disk.
+- `UD-Q2_K_XL` decodes **1.05x slower** than `Q4_K_M` here, despite being 0.11 GB smaller. On this M1 run, Metal offload was active; these measurements do not isolate whether quantization-kernel overhead or run-to-run variation explains the difference, so I do not attribute it to a profiled bottleneck.
 
 ## Your observation
 
-`UD-Q2_K_XL` reduced size by 0.11 GB and improved decode from 41.6 to 48.7 tok/s (1.17x), while TTFT P50 stayed about the same. On the same prefill/decode question, Q4 gave a partly relevant but incorrect explanation; Q2 went off-topic and invented a training trade-off. For this factual prompt, the speed/size gain did not justify the quality loss; neither answer was reliable without checking the source.
+Q2 saved 0.11 GB, but decoded at 56.6 tok/s versus Q4 at 59.2 tok/s (about 4.4% slower); TTFT P50 was nearly the same (98 ms vs 96 ms). The smaller file was not a speed win in this run. In a separate same-question comparison, Q4 gave a partly relevant but incorrect explanation, while Q2 went off-topic and invented a training/accuracy trade-off. Neither answer was reliable without checking the source, so the size saving did not justify choosing Q2 for this use.
