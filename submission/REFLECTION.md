@@ -74,9 +74,9 @@ Reducing threads from eight to one improved measured decode throughput by 17%. Q
 
 ## 8. Self-check before push
 
-- [ ] `hardware.json` committed
-- [ ] `models/active.json` committed
-- [ ] Benchmark reports generated and observations filled
+- [x] `hardware.json` committed
+- [x] `models/active.json` committed
+- [x] Benchmark reports generated and observations filled
 - [ ] Five screenshots in `submission/screenshots/`
 - [ ] `make verify` → exit 0
 - [x] Repository has the required name: `K4-L3-DAY20-VoPhuHan-2A202602628-ModelServing`
