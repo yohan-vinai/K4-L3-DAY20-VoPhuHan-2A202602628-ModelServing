@@ -1,188 +1,90 @@
 # Reflection — Day 20 Lab (Personal Report)
 
-> **Đây là báo cáo cá nhân.** Số liệu của bạn **không** so sánh được với bạn cùng lớp
-> — chỉ so **before vs after trên chính máy bạn**. Rubric chấm độ rõ ràng của setup,
-> đo lường và **lập luận**, không chấm tốc độ tuyệt đối.
->
-> `make verify` sẽ fail nếu còn placeholder chưa điền. Đó là cố ý.
+**Name:** Võ Phú Hãn
+**Student ID:** 2A202602628
+**Cohort:** A20-K4
+**Submission date:** 2026-10-06
 
-**Họ Tên:** _<Họ Tên>_
-**MSSV:** _<MSSV>_
-**Cohort:** _<A20-K1 / A20-K2 / ...>_
-**Ngày submit:** _<YYYY-MM-DD>_
+## 1. Hardware & runtime
 
----
+- **OS:** macOS (Darwin 25.6.0, arm64)
+- **CPU:** Apple M1; **cores:** 8 physical / 8 logical; **extensions:** NEON
+- **RAM:** 16.0 GB; **accelerator:** Apple Metal
+- **llama.cpp:** `llama-b10488-bin-macos-arm64.tar.gz` (prebuilt)
+- **Model:** Qwen3.5 0.8B (`LAB_MODEL=qwen35-0.8b`)
+- **Quantizations:** Q4_K_M + UD-Q2_K_XL
+- **Run on:** personal laptop
 
-## 1. Hardware & runtime  *(rubric 1, 2 — 10 điểm)*
+Setup ran on the M1. I chose the smaller model to reduce download and run time. Setup fetched the macOS arm64 runtime and both quantizations; no CUDA, compiler, or cloud fallback was needed.
 
-> Từ `make probe`. Paste output hoặc điền tay.
-
-- **OS:** _<macOS 14 / Windows 11 / Ubuntu 24.04 / ...>_
-- **CPU:** _<Apple M2 / Intel i7-12700H / AMD Ryzen 7 5800H>_
-- **Cores:** _<physical / logical>_
-- **CPU extensions:** _<AVX2 / AVX-512 / NEON / —>_
-- **RAM:** _<GB>_
-- **Accelerator:** _<NVIDIA RTX 4060 / Apple Metal / Vulkan / CPU only>_
-- **llama.cpp asset đã tải:** _<vd: llama-b10488-bin-macos-arm64.tar.gz>_
-- **Model đã dùng:** _<Gemma 4 E2B / Qwen3.5 0.8B>_ (`LAB_MODEL=`_<gemma4-e2b / qwen35-0.8b>_)
-- **Quantization:** _<primary>_ + _<compare>_ (từ `models/active.json`)
-
-**Chạy ở đâu:** _<laptop của tôi / Colab / Kaggle>_
-_(Nếu dùng cloud fallback: nói rõ vì sao — RAM < 8 GB, setup fail, v.v. Không mất điểm.)_
-
-**Setup story** (≤ 80 chữ): điều gì cần thay đổi để lab chạy trên máy bạn? Có bước
-nào fail rồi phải workaround không?
-
-_Answer here._
-
----
-
-## 2. Đo lường  *(rubric 3, 4, 5 — 20 điểm)*
-
-> Paste bảng từ `benchmarks/01-quickstart-results.md` (`make bench` tự sinh).
+## 2. Measurement
 
 | Quantization | Size (GB) | Load (ms) | TTFT P50/P95 (ms) | TPOT P50/P95 (ms) | E2E P50/P95/P99 (ms) | Decode (tok/s) |
 |---|--:|--:|--:|--:|--:|--:|
-| UD-Q4_K_XL | | | | | | |
-| UD-Q2_K_XL | | | | | | |
+| Q4_K_M | 0.50 | 2094 | 122 / 321 | 24.0 / 30.1 | 1558 / 2044 / 2044 | 41.6 |
+| UD-Q2_K_XL | 0.39 | 3117 | 123 / 150 | 20.6 / 23.5 | 1444 / 1593 / 1593 | 48.7 |
 
-**Quan sát** (≤ 60 chữ): 2-bit nhanh hơn bao nhiêu, và **có đáng không**? Bạn đã thử
-hỏi cùng một câu trên cả hai (`make serve` vs `.venv/bin/python labs/02-serve/serve.py --compare`)
-chưa? Chất lượng khác nhau thế nào?
+Q2 used 0.11 GB less and decoded 1.17× faster; TTFT P50 was almost unchanged. On the same prefill/decode question, Q4 gave a partly relevant but incorrect explanation, while Q2 went off-topic and invented a training/accuracy trade-off. For this factual prompt, the speed/size gain did not justify the quality loss; neither answer was reliable without checking the source.
 
-_Answer here._
+## 3. Serving under load
 
----
-
-## 3. Serving under load  *(rubric 8, 9, 10 — 20 điểm)*
-
-> Từ `benchmarks/02-server-results.md` (`make load-report`).
-
-| Users | RPS | P50 (ms) | P95 (ms) | P99 (ms) | Eff. concurrency | Failures |
+| Users | RPS | P50 (ms) | P95 (ms) | P99 (ms) | Effective concurrency | Failures |
 |--:|--:|--:|--:|--:|--:|--:|
-| 10 | | | | | | |
-| 50 | | | | | | |
+| 10 | 0.83 | 11000 | 16000 | 17000 | 8.6 | 0.0% |
+| 50 | 0.64 | 27000 | 57000 | 57000 | 18.3 | 0.0% |
 
-- **Offered load tăng 5×, throughput thực tăng:** _<X.XX>×_
-- **P95 tăng:** _<X.XX>×_
-- **Effective concurrency ở 50 users:** _<số>_ so với `--parallel` = _<số>_ slots
+- Offered users increased 5×; delivered throughput was **0.78×** (a 22% decrease).
+- P95 latency increased **3.56×**.
+- Effective concurrency at 50 users: **18.3** versus `--parallel=4` slots.
+- Peak `n_busy_slots_per_decode`: **3.87/4** slots; **46** requests were deferred.
 
-**Peak `llamacpp:n_busy_slots_per_decode`** (từ `make metrics` khi `make load-50` đang
-chạy): _<số>_ / _<slots>_ slots
+Using a 20-second P95 target for this reading, the 10-user run met it (16 s), while the 50-user run did not (57 s). The high-load run shows a growing queue: Little's Law effective concurrency includes queued requests, while the 3.87 busy-slot gauge measures decode-slot occupancy. I would first cap long prompts/outputs or admission rate to reduce slot holding time; adding slots alone does not add M1 memory bandwidth.
 
-**Saturation reading** (≤ 80 chữ): server của bạn bão hoà ở đâu, và **bằng chứng nào**
-thuyết phục bạn? Nếu P95 tăng nhanh hơn RPS thì phần latency thêm đó là queue time hay
-compute time — bạn biết bằng cách nào? Nếu bạn phải nâng goodput@SLO, bạn sẽ đổi knob
-nào **trước**, và vì sao knob đó?
+## 4. Integration
 
-_Answer here._
-
----
-
-## 4. Integration  *(rubric 12, 13 — 15 điểm)*
-
-> Từ `make pipeline`. Nói thật cái nào real, cái nào stub — stub **không** mất điểm.
-
-| Day | Piece | Real hay stub? |
+| Day | Piece | Real or stub? |
 |---|---|---|
-| N16 Cloud/IaC | | |
-| N17 Data pipeline | | |
-| N18 Lakehouse | | |
-| N19 Vector + features | | |
-| N20 Serving | `llama-server` | real |
+| N16 Cloud/IaC | Not connected to the pipeline | Stub |
+| N17 Data pipeline | Not connected to the pipeline | Stub |
+| N18 Lakehouse | Not connected to the pipeline | Stub |
+| N19 Vector + features | Toy documents + keyword overlap; no vector index or embedding service | Stub |
+| N20 Serving | llama-server | Real |
 
-**Latency split** (mean của 3 query, từ output của `pipeline.py`):
+Mean latency over three queries: embed **0.0 ms**, retrieve **0.1 ms**, LLM **3475.5 ms**, total **3475.6 ms**. LLM generation is nearly 100% of the measured total. To halve latency in this setup, I would reduce prompt/context or output tokens first; retrieval optimization cannot yield a 2× speedup when it takes 0.1 ms.
 
-- embed: _<ms>_
-- retrieve: _<ms>_
-- llm: _<ms>_
-- **stage chiếm nhiều nhất:** _<stage>_ (_<%>_ của total)
+## 5. The single change that mattered most
 
-**Reflection** (≤ 60 chữ): bottleneck ở đâu? Có khớp với kỳ vọng của bạn không? Nếu
-phải giảm latency của pipeline này 2×, bạn sẽ tấn công vào đâu?
+**Change:** reduce llama-bench thread count from 8 to 1.
 
-_Answer here._
-
----
-
-## 5. The single change that mattered most  *(rubric 11 — 10 điểm)*
-
-> **Phần quan trọng nhất của report.** Không cần bonus track: `make tune` đã cho bạn
-> một before/after thật (`benchmarks/01-tuning-tg128.md`). Đổi quantization,
-> `LAB_N_CTX`, hay `--parallel` rồi đo lại cũng được.
-
-**Change:** _<vd: hạ -t từ 16 xuống 8; vd: đổi sang UD-Q2_K_XL; vd: --parallel 4 → 8>_
-
-```
-before:  <số + đơn vị>
-after:   <số + đơn vị>
-speedup: <X.Y>×
+```text
+before: 47.2 tok/s (`-t 8`, tg128)
+after:  55.2 tok/s (`-t 1`, tg128)
+speedup: 1.17×
 ```
 
-**Tại sao nó work** (1–2 đoạn — đây là phần grader đọc kỹ nhất):
+The measured peak was at one thread, not near the eight physical cores. With `ngl=99`, llama.cpp offloads the model to Apple Metal; adding CPU threads does not add GPU compute or memory bandwidth, and may add host scheduling/coordination overhead for this small model. This is a plausible explanation consistent with the measurement, not a profiler finding, and applies to this M1/Metal setup.
 
-_Giải thích như đang nói với bạn ngồi cạnh. Bám vào **cơ chế**, không phải "vibes":
-memory bandwidth? vector width? cache residency? scheduling? queueing? Nếu kết quả
-**khác** với kỳ vọng từ deck — nói rõ, và giải thích vì sao. Grader thưởng điểm cho
-lập luận đúng về một kết quả bất ngờ, hơn là một con số đẹp không được giải thích._
+## 6. Bonus
 
-_Answer here._
+No bonus track completed.
 
----
+## 7. What surprised me most
 
-## 6. Bonus  *(optional — tối đa 10 điểm)*
+Reducing threads from eight to one improved measured decode throughput by 17%. Q2 was faster, but its answer to the comparison question was less accurate than Q4's.
 
-> Bỏ trống nếu không làm. Xem `docs/bonus/README.md`. Đừng làm hết — **một** finding sâu
-> ăn điểm hơn năm bảng nông.
-
-**Đã làm:** _<B1 build-compare / B2 sweep nào / B4 challenge nào / B5 lựa chọn nào>_
-
-**Numbers:**
-
-```
-before:  <số>
-after:   <số>
-speedup: <X.Y>×
-```
-
-**Điều này nói lên gì mà deck chưa nói:**
-
-_(để trống nếu bạn không làm phần này)_
-
----
-
-## 7. Điều làm bạn ngạc nhiên nhất  *(optional)*
-
-_(1–2 câu. Không bắt buộc, nhưng grader đọc hết.)_
-
-_(để trống nếu bạn không làm phần này)_
-
----
-
-## 8. Self-check trước khi push
+## 8. Self-check before push
 
 - [ ] `hardware.json` committed
 - [ ] `models/active.json` committed
-- [ ] `benchmarks/01-quickstart-results.md` committed (`make bench`)
-- [ ] `benchmarks/01-tuning-tg128.md` committed (`make tune`)
-- [ ] `benchmarks/02-server-results.md` committed (`make load-report`)
-- [ ] `benchmarks/02-server-batching-u50.md` hoặc `-metrics-u50.csv` committed (`make metrics`)
-- [ ] `benchmarks/locust-10_stats.csv` + `locust-50_stats.csv` committed (`make load-10` / `load-50`)
-- [ ] `benchmarks/03-integration-results.md` committed (`make pipeline`)
-- [ ] Mọi section **"required — replace this line"** trong các file `benchmarks/*.md`
-      đã được thay bằng nhận xét của bạn
-- [ ] 5 screenshots trong `submission/screenshots/`
-- [ ] `make verify` → **exit 0**
-- [ ] Repo tên đúng mẫu `K4-L3-DAY20-HoVaTen-MSSV-ModelServing` (xem `docs/SUBMISSION.md`)
-- [ ] Repo GitHub ở chế độ **public**
-- [ ] Đã push và paste public URL vào VinUni LMS **trước 23:59 (UTC+7) ngày làm lab**
-- [ ] **Không** commit `models/*.gguf`, `runtime/` hay `.env` (đã có trong `.gitignore`)
+- [ ] Benchmark reports generated and observations filled
+- [ ] Five screenshots in `submission/screenshots/`
+- [ ] `make verify` → exit 0
+- [x] Repository has the required name: `K4-L3-DAY20-VoPhuHan-2A202602628-ModelServing`
+- [x] GitHub repository is public
+- [ ] Final commit pushed
+- [ ] URL pasted into VinUni LMS before the deadline
+- [x] Model weights, runtime, and `.env` are not included
 
-**Quan trọng:** repo phải **public** đến khi điểm được công bố. Private → grader không
-xem được → 0 điểm.
+## 9. AI usage disclosure
 
----
-
-## 9. Khai báo sử dụng AI  *(xem `docs/RULES.md` §3)*
-
-_(Công cụ nào, dùng vào việc gì. Ghi "Không dùng" nếu không dùng.)_
+OpenAI Codex was used to read the guide, run setup/benchmarks/load tests/pipeline on this laptop, compare the two model responses, and help draft the explanations from measured results. The measurements came from this M1; no metrics or screenshots were fabricated.
